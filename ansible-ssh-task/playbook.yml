@@ -1,0 +1,60 @@
+---
+- name: Configurar usuario, SSH y directorio
+  hosts: all
+  become: true
+
+  vars:
+    username: devuser
+    ssh_public_key_path: files/id_rsa.pub
+    remote_dir: /opt/devdir
+
+  tasks:
+    - name: Crear usuario
+      user:
+        name: "{{ username }}"
+        shell: /bin/bash
+        state: present
+        create_home: yes
+
+    - name: Agregar usuario al grupo sudo
+      user:
+        name: "{{ username }}"
+        groups: sudo
+        append: yes
+
+    - name: Crear .ssh y authorized_keys
+      file:
+        path: "/home/{{ username }}/.ssh"
+        state: directory
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0700'
+
+    - name: Copiar clave pública
+      copy:
+        src: "{{ ssh_public_key_path }}"
+        dest: "/home/{{ username }}/.ssh/authorized_keys"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0600'
+
+    - name: Desactivar autenticación por contraseña en SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        state: present
+        backup: yes
+
+    - name: Reiniciar SSH
+      service:
+        name: ssh
+        state: restarted
+
+    - name: Crear directorio en /opt/ con permisos 660
+      file:
+        path: "{{ remote_dir }}"
+        state: directory
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: '0660'
